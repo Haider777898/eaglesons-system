@@ -6,7 +6,6 @@ from datetime import datetime
 st.set_page_config(page_title="Eagle Sons Gujrat - Management System", layout="wide")
 
 # --- LOGIN SYSTEM ---
-# Default credentials set for Asad Haider
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
@@ -20,7 +19,6 @@ if not st.session_state.logged_in:
         login_btn = st.form_submit_button("Login")
         
         if login_btn:
-            # You can change these credentials anytime
             if username == "asad" and password == "eagle123":
                 st.session_state.logged_in = True
                 st.success("Logged in successfully!")
@@ -28,7 +26,7 @@ if not st.session_state.logged_in:
             else:
                 st.error("Incorrect Username or Password!")
 else:
-    # --- MAIN APPLICATION (Only shows after login) ---
+    # --- MAIN APPLICATION ---
     st.title("🦅 Eagle Sons Gujrat - Management System")
     st.write("Hydro Dipping & Wood Coating Business Ledger & Stock")
     
@@ -44,12 +42,13 @@ else:
     if 'expenses' not in st.session_state:
         st.session_state.expenses = pd.DataFrame(columns=['Date', 'Expense Category', 'Description', 'Amount'])
 
+    # Dynamic Stock Setup
     if 'stock' not in st.session_state:
         st.session_state.stock = pd.DataFrame([
-            {'Item Name': 'Activator (Liters)', 'Current Stock': 10.0, 'Unit': 'Liters'},
-            {'Item Name': 'Clear Coat (Liters)', 'Current Stock': 15.0, 'Unit': 'Liters'},
-            {'Item Name': 'Thinner (Liters)', 'Current Stock': 20.0, 'Unit': 'Liters'},
-            {'Item Name': 'Hydro Film (Meters)', 'Current Stock': 50.0, 'Unit': 'Meters'}
+            {'Item Name': 'Activator', 'Current Stock': 10.0, 'Unit': 'Liters'},
+            {'Item Name': 'Clear Coat', 'Current Stock': 15.0, 'Unit': 'Liters'},
+            {'Item Name': 'Thinner', 'Current Stock': 20.0, 'Unit': 'Liters'},
+            {'Item Name': 'Hydro Film', 'Current Stock': 50.0, 'Unit': 'Meters'}
         ])
 
     # Sidebar Navigation
@@ -118,18 +117,41 @@ else:
         if not st.session_state.expenses.empty:
             st.dataframe(st.session_state.expenses, use_container_width=True)
 
-    # 5. Stock Management
+    # 5. Stock Management (With Add New Item Capability)
     elif choice == "Stock Management":
         st.header("📦 Factory Stock / Inventory Management")
         
-        st.subheader("Current Stock Status")
+        # Section 1: Create/Add completely new components
+        st.subheader("🆕 Add New Custom Item / Component")
+        with st.form("new_item_form"):
+            c1, c2, c3 = st.columns([2, 1, 1])
+            new_item_name = c1.text_input("Item Name (e.g., Carbon Fiber Film, Red Paint)")
+            new_item_unit = c2.selectbox("Unit", ["Liters", "Meters", "Kg", "Nos/Pcs"])
+            initial_stock = c3.number_input("Starting Quantity", min_value=0.0, step=1.0)
+            create_btn = st.form_submit_button("➕ Add This Item To System")
+            
+            if create_btn and new_item_name:
+                # Check if item already exists
+                if new_item_name.lower() in st.session_state.stock['Item Name'].str.lower().tolist():
+                    st.error("This item already exists in inventory!")
+                else:
+                    new_item_row = {'Item Name': new_item_name, 'Current Stock': initial_stock, 'Unit': new_item_unit}
+                    st.session_state.stock = pd.concat([st.session_state.stock, pd.DataFrame([new_item_row])], ignore_index=True)
+                    st.success(f"Successfully added '{new_item_name}' to the inventory list!")
+                    st.rerun()
+
+        st.write("---")
+        
+        # Show Current Stock Table
+        st.subheader("📊 Current Stock Status")
         st.dataframe(st.session_state.stock, use_container_width=True, hide_index=True)
         
         st.write("---")
         col1, col2 = st.columns(2)
         
+        # Form to Update / Add Stock
         with col1:
-            st.subheader("📥 Add / Restock Item")
+            st.subheader("📥 Add / Restock Quantity")
             with st.form("add_stock_form"):
                 add_item = st.selectbox("Select Item to Restock", st.session_state.stock['Item Name'].tolist())
                 add_qty = st.number_input("Quantity to Add", min_value=0.0, step=1.0)
@@ -140,6 +162,7 @@ else:
                     st.success(f"{add_qty} added to {add_item}!")
                     st.rerun()
 
+        # Form to Consume Stock
         with col2:
             st.subheader("📤 Use / Consume Stock")
             with st.form("use_stock_form"):
