@@ -6,7 +6,7 @@ from datetime import datetime
 st.set_page_config(page_title="Eagle Sons Gujrat - Management System", layout="wide")
 
 st.title("🦅 Eagle Sons Gujrat - Management System")
-st.write("Hydro Dipping & Wood Coating Business Ledger")
+st.write("Hydro Dipping & Wood Coating Business Ledger & Stock")
 
 # Initialize Data Streams
 if 'parties_ledger' not in st.session_state:
@@ -15,8 +15,16 @@ if 'parties_ledger' not in st.session_state:
 if 'expenses' not in st.session_state:
     st.session_state.expenses = pd.DataFrame(columns=['Date', 'Expense Category', 'Description', 'Amount'])
 
-# Sidebar Navigation (The 4 Items Menu)
-menu = ["Dashboard", "Billing/Invoices", "Ledger", "Expenses"]
+if 'stock' not in st.session_state:
+    st.session_state.stock = pd.DataFrame([
+        {'Item Name': 'Activator (Liters)', 'Current Stock': 10.0, 'Unit': 'Liters'},
+        {'Item Name': 'Clear Coat (Liters)', 'Current Stock': 15.0, 'Unit': 'Liters'},
+        {'Item Name': 'Thinner (Liters)', 'Current Stock': 20.0, 'Unit': 'Liters'},
+        {'Item Name': 'Hydro Film (Meters)', 'Current Stock': 50.0, 'Unit': 'Meters'}
+    ])
+
+# Sidebar Navigation (Now with Stock Management)
+menu = ["Dashboard", "Billing/Invoices", "Ledger", "Expenses", "Stock Management"]
 choice = st.sidebar.selectbox("Navigation Menu", menu)
 
 # 1. Dashboard
@@ -80,3 +88,44 @@ elif choice == "Expenses":
     st.subheader("Recent Expenses Log")
     if not st.session_state.expenses.empty:
         st.dataframe(st.session_state.expenses, use_container_width=True)
+
+# 5. Stock Management (New Partner Feature)
+elif choice == "Stock Management":
+    st.header("📦 Factory Stock / Inventory Management")
+    
+    # Show Current Stock Table
+    st.subheader("Current Stock Status")
+    st.dataframe(st.session_state.stock, use_container_width=True, hide_index=True)
+    
+    st.write("---")
+    col1, col2 = st.columns(2)
+    
+    # Form to Update / Add Stock
+    with col1:
+        st.subheader("📥 Add / Restock Item")
+        with st.form("add_stock_form"):
+            add_item = st.selectbox("Select Item to Restock", st.session_state.stock['Item Name'].tolist())
+            add_qty = st.number_input("Quantity to Add", min_value=0.0, step=1.0)
+            add_btn = st.form_submit_button("Update Stock")
+            
+            if add_btn and add_qty > 0:
+                st.session_state.stock.loc[st.session_state.stock['Item Name'] == add_item, 'Current Stock'] += add_qty
+                st.success(f"{add_qty} added to {add_item}!")
+                st.rerun()
+
+    # Form to Consume Stock
+    with col2:
+        st.subheader("📤 Use / Consume Stock")
+        with st.form("use_stock_form"):
+            use_item = st.selectbox("Select Item Used", st.session_state.stock['Item Name'].tolist())
+            use_qty = st.number_input("Quantity Used", min_value=0.0, step=1.0)
+            use_btn = st.form_submit_button("Record Consumption")
+            
+            if use_btn and use_qty > 0:
+                current_available = st.session_state.stock.loc[st.session_state.stock['Item Name'] == use_item, 'Current Stock'].values[0]
+                if use_qty <= current_available:
+                    st.session_state.stock.loc[st.session_state.stock['Item Name'] == use_item, 'Current Stock'] -= use_qty
+                    st.success(f"{use_qty} deducted from {use_item}!")
+                    st.rerun()
+                else:
+                    st.error("Not enough stock available!")
