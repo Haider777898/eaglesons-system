@@ -1,9 +1,34 @@
-import streamlit as st
+simport streamlit as st
 import pandas as pd
 from datetime import datetime
+import os
 
 # Page Configuration
 st.set_page_config(page_title="Eagle Sons Gujrat - Management System", layout="wide")
+
+# --- DATA STORAGE PATHS (CSV Files) ---
+LEDGER_FILE = "ledger_data.csv"
+EXPENSES_FILE = "expenses_data.csv"
+STOCK_FILE = "stock_data.csv"
+
+# Functions to Load and Save Data
+def load_data(file_path, default_cols, is_stock=False):
+    if os.path.exists(file_path):
+        try:
+            return pd.read_csv(file_path)
+        except Exception:
+            pass
+    if is_stock:
+        return pd.DataFrame([
+            {'Item Name': 'Activator', 'Current Stock': 10.0, 'Unit': 'Liters'},
+            {'Item Name': 'Clear Coat', 'Current Stock': 15.0, 'Unit': 'Liters'},
+            {'Item Name': 'Thinner', 'Current Stock': 20.0, 'Unit': 'Liters'},
+            {'Item Name': 'Hydro Film', 'Current Stock': 50.0, 'Unit': 'Meters'}
+        ])
+    return pd.DataFrame(columns=default_cols)
+
+def save_data(df, file_path):
+    df.to_csv(file_path, index=False)
 
 # --- LOGIN SYSTEM ---
 if 'logged_in' not in st.session_state:
@@ -35,21 +60,15 @@ else:
         st.session_state.logged_in = False
         st.rerun()
 
-    # Initialize Data Streams
+    # Load Data from CSV files (Persistent Storage)
     if 'parties_ledger' not in st.session_state:
-        st.session_state.parties_ledger = pd.DataFrame(columns=['Date', 'Party Name', 'Product/Job Description', 'Total Bill', 'Amount Received', 'Balance'])
+        st.session_state.parties_ledger = load_data(LEDGER_FILE, ['Date', 'Party Name', 'Product/Job Description', 'Total Bill', 'Amount Received', 'Balance'])
 
     if 'expenses' not in st.session_state:
-        st.session_state.expenses = pd.DataFrame(columns=['Date', 'Expense Category', 'Description', 'Amount'])
+        st.session_state.expenses = load_data(EXPENSES_FILE, ['Date', 'Expense Category', 'Description', 'Amount'])
 
-    # Dynamic Stock Setup
     if 'stock' not in st.session_state:
-        st.session_state.stock = pd.DataFrame([
-            {'Item Name': 'Activator', 'Current Stock': 10.0, 'Unit': 'Liters'},
-            {'Item Name': 'Clear Coat', 'Current Stock': 15.0, 'Unit': 'Liters'},
-            {'Item Name': 'Thinner', 'Current Stock': 20.0, 'Unit': 'Liters'},
-            {'Item Name': 'Hydro Film', 'Current Stock': 50.0, 'Unit': 'Meters'}
-        ])
+        st.session_state.stock = load_data(STOCK_FILE, [], is_stock=True)
 
     # Sidebar Navigation
     menu = ["Dashboard", "Billing/Invoices", "Ledger", "Expenses", "Stock Management"]
@@ -88,6 +107,9 @@ else:
                 balance = total_bill - amt_received
                 new_row = {'Date': date.strftime('%Y-%m-%d'), 'Party Name': party_name, 'Product/Job Description': job_desc, 'Total Bill': total_bill, 'Amount Received': amt_received, 'Balance': balance}
                 st.session_state.parties_ledger = pd.concat([st.session_state.parties_ledger, pd.DataFrame([new_row])], ignore_index=True)
+                
+                # Save to CSV File
+                save_data(st.session_state.parties_ledger, LEDGER_FILE)
                 st.success("Invoice Saved Successfully!")
 
     # 3. Ledger
@@ -111,13 +133,16 @@ else:
             if exp_submit and amount > 0:
                 new_exp = {'Date': exp_date.strftime('%Y-%m-%d'), 'Expense Category': category, 'Description': desc, 'Amount': amount}
                 st.session_state.expenses = pd.concat([st.session_state.expenses, pd.DataFrame([new_exp])], ignore_index=True)
+                
+                # Save to CSV File
+                save_data(st.session_state.expenses, EXPENSES_FILE)
                 st.success("Expense Recorded Successfully!")
                 
         st.subheader("Recent Expenses Log")
         if not st.session_state.expenses.empty:
             st.dataframe(st.session_state.expenses, use_container_width=True)
 
-    # 5. Stock Management (With Add New Item Capability)
+    # 5. Stock Management
     elif choice == "Stock Management":
         st.header("📦 Factory Stock / Inventory Management")
         
@@ -131,12 +156,14 @@ else:
             create_btn = st.form_submit_button("➕ Add This Item To System")
             
             if create_btn and new_item_name:
-                # Check if item already exists
                 if new_item_name.lower() in st.session_state.stock['Item Name'].str.lower().tolist():
                     st.error("This item already exists in inventory!")
                 else:
                     new_item_row = {'Item Name': new_item_name, 'Current Stock': initial_stock, 'Unit': new_item_unit}
                     st.session_state.stock = pd.concat([st.session_state.stock, pd.DataFrame([new_item_row])], ignore_index=True)
+                    
+                    # Save to CSV File
+                    save_data(st.session_state.stock, STOCK_FILE)
                     st.success(f"Successfully added '{new_item_name}' to the inventory list!")
                     st.rerun()
 
@@ -159,6 +186,9 @@ else:
                 
                 if add_btn and add_qty > 0:
                     st.session_state.stock.loc[st.session_state.stock['Item Name'] == add_item, 'Current Stock'] += add_qty
+                    
+                    # Save to CSV File
+                    save_data(st.session_state.stock, STOCK_FILE)
                     st.success(f"{add_qty} added to {add_item}!")
                     st.rerun()
 
@@ -174,6 +204,9 @@ else:
                     current_available = st.session_state.stock.loc[st.session_state.stock['Item Name'] == use_item, 'Current Stock'].values[0]
                     if use_qty <= current_available:
                         st.session_state.stock.loc[st.session_state.stock['Item Name'] == use_item, 'Current Stock'] -= use_qty
+                        
+                        # Save to CSV File
+                        save_data(st.session_state.stock, STOCK_FILE)
                         st.success(f"{use_qty} deducted from {use_item}!")
                         st.rerun()
                     else:
